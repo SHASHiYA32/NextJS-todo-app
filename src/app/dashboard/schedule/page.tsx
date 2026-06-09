@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, closestCorners } from "@dnd-kit/core";
 import { Clock3, GripVertical, ListChecks } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sessions as sessionSeed } from "@/mock/data";
+import { supabase } from "@/lib/supabase";
+import { getStudySessions, updateStudySession } from "@/lib/db";
 import type { Session } from "@/types";
 
 const timeSlots = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
@@ -24,13 +25,13 @@ function SessionCard({ session }: { session: Session }) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="rounded-2xl sm:rounded-3xl border border-border/70 bg-gradient-to-br from-primary/10 to-background/90 p-3 sm:p-4 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing">
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="rounded-2xl sm:rounded-3xl border border-border/70 bg-linear-to-br from-primary/10 to-background/90 p-3 sm:p-4 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold text-sm sm:text-base truncate">{session.subject}</p>
           <p className="text-xs sm:text-sm text-muted-foreground">{session.start} - {session.end}</p>
         </div>
-        <GripVertical className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+        <GripVertical className="h-5 w-5 text-muted-foreground shrink-0" />
       </div>
     </div>
   );
@@ -42,7 +43,7 @@ function TimeSlot({ time, children }: { time: string; children: React.ReactNode 
   return (
     <div ref={setNodeRef} className={`rounded-xl sm:rounded-[2rem] border border-border/70 p-3 sm:p-4 transition ${isOver ? "ring-2 ring-primary/40 bg-primary/10" : "bg-card/90"}`}>
       <div className="mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
-        <Clock3 className="h-4 sm:h-5 w-4 sm:w-5 text-primary flex-shrink-0" />
+        <Clock3 className="h-4 sm:h-5 w-4 sm:w-5 text-primary shrink-0" />
         <div>
           <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-muted-foreground">{time}</p>
           <p className="text-sm sm:text-lg font-semibold">Hour block</p>
@@ -54,14 +55,25 @@ function TimeSlot({ time, children }: { time: string; children: React.ReactNode 
 }
 
 export default function SchedulePage() {
-  const [sessions, setSessions] = useState<Session[]>(sessionSeed);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadSessions = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+      const fetchedSessions = await getStudySessions(userId);
+      setSessions(fetchedSessions);
+    };
+    loadSessions();
+  }, []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleDragStart = ({ active }: { active: any }) => setActiveId(active.id);
 
-  const handleDragEnd = ({ active, over }: { active: any; over: any }) => {
+  const handleDragEnd = async ({ active, over }: { active: any; over: any }) => {
     setActiveId(null);
     if (!over) return;
     const activeSession = sessions.find((session) => session.id === active.id);
@@ -69,7 +81,9 @@ export default function SchedulePage() {
     const destination = over.id as string;
     if (!destination.startsWith("slot-")) return;
     const newStart = destination.replace("slot-", "");
-    setSessions((prev) => prev.map((session) => (session.id === activeSession.id ? { ...session, start: newStart, end: getEndTime(newStart) } : session)));
+    const updatedSession = { ...activeSession, start: newStart, end: getEndTime(newStart) };
+    setSessions((prev) => prev.map((session) => (session.id === activeSession.id ? updatedSession : session)));
+    await updateStudySession(activeSession.id, { start_time: newStart, end_time: updatedSession.end });
   };
 
   const activeSession = activeId ? sessions.find((session) => session.id === activeId) : null;
@@ -81,7 +95,7 @@ export default function SchedulePage() {
           <p className="font-semibold text-sm sm:text-base truncate">{session.subject}</p>
           <p className="text-xs sm:text-sm text-muted-foreground">{session.start} - {session.end}</p>
         </div>
-        <GripVertical className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+        <GripVertical className="h-5 w-5 text-muted-foreground shrink-0" />
       </div>
     </div>
   );
@@ -105,10 +119,10 @@ export default function SchedulePage() {
               </TimeSlot>
             ))}
           </div>
-          <Card className="rounded-2xl sm:rounded-[2rem] border border-border/80 bg-gradient-to-br from-primary/5 to-card/90 p-4 sm:p-6 shadow-sm shadow-black/5 h-fit sticky top-20">
+          <Card className="rounded-2xl sm:rounded-[2rem] border border-border/80 bg-linear-to-br from-primary/5 to-card/90 p-4 sm:p-6 shadow-sm shadow-black/5 h-fit sticky top-20">
             <CardHeader className="p-0 mb-4 sm:mb-6">
               <div className="flex items-center gap-2 sm:gap-3">
-                <ListChecks className="h-5 w-5 text-primary flex-shrink-0" />
+                <ListChecks className="h-5 w-5 text-primary shrink-0" />
                 <CardTitle className="text-base sm:text-xl font-semibold">Ready sessions</CardTitle>
               </div>
             </CardHeader>

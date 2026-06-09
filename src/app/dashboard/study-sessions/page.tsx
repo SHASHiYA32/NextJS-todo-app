@@ -4,12 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { Play, Pause, RotateCcw, Clock3, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sessions as sessionSeed } from "@/mock/data";
+import { getStudySessions, getUserId } from "@/lib/db";
+import type { Session } from "@/types";
 
 export default function StudySessionsPage() {
   const [seconds, setSeconds] = useState(25 * 60);
   const [running, setRunning] = useState(false);
-  const [sessions, setSessions] = useState(sessionSeed);
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  useEffect(() => {
+    const loadSessions = async () => {
+      const userId = await getUserId();
+      if (!userId) return;
+      const data = await getStudySessions(userId);
+      setSessions(data);
+    };
+
+    loadSessions();
+  }, []);
 
   useEffect(() => {
     if (!running) return;

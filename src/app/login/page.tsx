@@ -1,11 +1,42 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setError(signInError.message);
+      return;
+    }
+
+    router.push("/dashboard");
+  };
+
+  const handleGoogle = async () => {
+    setError(null);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google" });
+    if (oauthError) {
+      setError(oauthError.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
@@ -20,10 +51,10 @@ export default function LoginPage() {
             </div>
           </CardHeader>
           <CardContent className="mt-6 p-0">
-            <form className="grid gap-5">
+            <form className="grid gap-5" onSubmit={handleSubmit}>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="hello@studyflow.com" />
+                <Input id="email" type="email" placeholder="hello@studyflow.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-3">
@@ -32,8 +63,9 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <Input id="password" type="password" placeholder="••••••••" />
+                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(event) => setPassword(event.target.value)} required />
               </div>
+              {error ? <p className="text-sm text-rose-500">{error}</p> : null}
               <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
                 <label className="inline-flex items-center gap-2 rounded-full bg-muted/70 px-3 py-2">
                   <input type="checkbox" className="h-4 w-4 rounded border-border bg-background text-primary" />
@@ -41,8 +73,8 @@ export default function LoginPage() {
                 </label>
                 <span>Secure session only</span>
               </div>
-              <Button className="rounded-full px-6 py-3 text-sm font-semibold">Login</Button>
-              <Button variant="outline" className="rounded-full px-6 py-3 text-sm font-semibold">
+              <Button type="submit" className="rounded-full px-6 py-3 text-sm font-semibold">Login</Button>
+              <Button type="button" variant="outline" className="rounded-full px-6 py-3 text-sm font-semibold" onClick={handleGoogle}>
                 <LogIn className="mr-2 h-4 w-4" /> Continue with Google
               </Button>
             </form>

@@ -1,46 +1,82 @@
 "use client"
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Pin, Trash2, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NoteCard } from "@/components/note-card";
-import { notes as noteSeed } from "@/mock/data";
+import { supabase } from "@/lib/supabase";
+import { getNotes, insertNote, updateNote, deleteNote } from "@/lib/db";
 import type { Note } from "@/types";
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>(noteSeed);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [searchText, setSearchText] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [formNote, setFormNote] = useState<Partial<Note>>({ tags: [], color: "bg-amber-500/10 text-amber-300 border-amber-300/20" });
+
+  useEffect(() => {
+    const loadNotes = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+
+      const fetchedNotes = await getNotes(userId);
+      setNotes(fetchedNotes);
+    };
+
+    loadNotes();
+  }, []);
 
   const filteredNotes = useMemo(() => {
     return notes.filter((note) => note.title.toLowerCase().includes(searchText.toLowerCase()) || note.content.toLowerCase().includes(searchText.toLowerCase()));
   }, [notes, searchText]);
 
-  const togglePin = (note: Note) => {
-    setNotes((prev) => prev.map((item) => (item.id === note.id ? { ...item, pinned: !item.pinned } : item)));
+  const togglePin = async (note: Note) => {
+    const updated = await updateNote({ ...note, pinned: !note.pinned });
+    if (!updated) return;
+    setNotes((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
   };
 
-  const handleDelete = (note: Note) => {
+  const handleDelete = async (note: Note) => {
+    await deleteNote(note.id);
     setNotes((prev) => prev.filter((item) => item.id !== note.id));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!formNote.title || !formNote.content) return;
-    const newNote: Note = {
-      id: `note-${Date.now()}`,
-      title: formNote.title,
-      content: formNote.content,
-      tags: (formNote.tags ?? []).map((tag) => String(tag)) as string[],
-      color: formNote.color ?? "bg-sky-500/10 text-sky-300 border-sky-300/20",
-      pinned: false,
-      updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-    };
-    setNotes((prev) => [newNote, ...prev]);
+
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+
+    if (formNote.id) {
+      const updated = await updateNote({
+        id: formNote.id,
+        title: formNote.title,
+        content: formNote.content,
+        tags: (formNote.tags ?? []).map((tag) => String(tag)),
+        color: formNote.color ?? "bg-amber-500/10 text-amber-300 border-amber-300/20",
+        pinned: formNote.pinned ?? false,
+        updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      } as Note);
+      if (!updated) return;
+      setNotes((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } else {
+      const newNote = await insertNote(userId, {
+        title: formNote.title,
+        content: formNote.content,
+        tags: (formNote.tags ?? []).map((tag) => String(tag)),
+        color: formNote.color ?? "bg-amber-500/10 text-amber-300 border-amber-300/20",
+        pinned: false,
+        updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      } as Omit<Note, "id">);
+      if (!newNote) return;
+      setNotes((prev) => [newNote, ...prev]);
+    }
+
     setShowModal(false);
     setFormNote({ tags: [], color: "bg-amber-500/10 text-amber-300 border-amber-300/20" });
   };

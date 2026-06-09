@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus, Search, Shuffle } from "lucide-react";
@@ -10,15 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TaskCard } from "@/components/task-card";
 import { EmptyState } from "@/components/empty-state";
-import { tasks as taskSeed, categories } from "@/mock/data";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import { getCategories, getTasks, insertTask, deleteTask, updateTaskOrder } from "@/lib/db";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
 
 const statusOrder: TaskStatus[] = ["Pending", "In Progress", "Completed"];
 const priorities: TaskPriority[] = ["High", "Medium", "Low"];
 
 export default function TasksPage() {
-  const [items, setItems] = useState<Task[]>(taskSeed);
+  const [items, setItems] = useState<Task[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
   const [selectedPriority, setSelectedPriority] = useState<string>("All");
@@ -27,7 +29,19 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false);
   const [formTask, setFormTask] = useState<Partial<Task>>({ status: "Pending", priority: "Medium" });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  useEffect(() => {
+    const loadData = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+
+      const [taskRows, categoryRows] = await Promise.all([getTasks(userId), getCategories(userId)]);
+      setItems(taskRows);
+      setCategories(categoryRows.map((category) => ({ id: category.id, name: category.name })));
+    };
+
+    loadData();
+  }, []);
 
   const filteredTasks = useMemo(() => {
     return items.filter((task) => {
@@ -87,7 +101,7 @@ export default function TasksPage() {
           <span className="rounded-full bg-muted/80 px-3 py-1 text-xs font-semibold text-muted-foreground">Drop here</span>
         </div>
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
-          <div ref={setNodeRef} className={cn("space-y-3 rounded-3xl p-1 transition", isOver ? "ring-2 ring-primary/40" : "")}> 
+          <div ref={setNodeRef} className={cn("space-y-3 rounded-3xl p-1 transition", isOver ? "ring-2 ring-primary/40" : "")}>
             {tasks.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-border/60 bg-background/80 p-6 text-center text-sm text-muted-foreground">No tasks in this column</div>
             ) : (
@@ -99,7 +113,7 @@ export default function TasksPage() {
     );
   };
 
-  const handleDragEnd = ({ active, over }: { active: any; over: any }) => {
+  const handleDragEnd = async ({ active, over }: { active: any; over: any }) => {
     setActiveId(null);
     if (!over) return;
     const activeTask = findTask(active.id);
@@ -114,24 +128,24 @@ export default function TasksPage() {
       const newIndex = statusTasks.findIndex((task) => task.id === overId);
       if (oldIndex === -1 || newIndex === -1) return;
       const updatedTasksForStatus = arrayMove(statusTasks, oldIndex, newIndex).map((task, index) => ({ ...task, order: index }));
-      setItems((prev) => prev.map((task) => updatedTasksForStatus.find((updated) => updated.id === task.id) ?? task));
+      const updatedItems = items.map((task) => updatedTasksForStatus.find((updated) => updated.id === task.id) ?? task);
+      setItems(updatedItems);
+      await updateTaskOrder(updatedTasksForStatus);
       return;
     }
 
     if (activeContainer !== overContainer) {
-      setItems((prev) => {
-        const destinationTasks = prev
-          .filter((task) => task.status === overContainer)
-          .sort((a, b) => a.order - b.order);
-        const updatedDestination = [...destinationTasks, { ...activeTask, status: overContainer as TaskStatus }].map((task, index) => ({ ...task, order: index }));
-        return prev.map((task) => {
-          if (task.id === activeTask.id) {
-            return { ...task, status: overContainer as TaskStatus, order: updatedDestination.length - 1 };
-          }
-          const updated = updatedDestination.find((item) => item.id === task.id);
-          return updated ?? task;
-        });
+      const destinationTasks = items.filter((task) => task.status === overContainer).sort((a, b) => a.order - b.order);
+      const updatedDestination = [...destinationTasks, { ...activeTask, status: overContainer as TaskStatus }].map((task, index) => ({ ...task, order: index }));
+      const updatedItems = items.map((task) => {
+        if (task.id === activeTask.id) {
+          return { ...task, status: overContainer as TaskStatus, order: updatedDestination.length - 1 };
+        }
+        const updated = updatedDestination.find((item) => item.id === task.id);
+        return updated ?? task;
       });
+      setItems(updatedItems);
+      await updateTaskOrder(updatedItems.filter((task) => task.status === activeContainer || task.status === overContainer));
     }
   };
 
@@ -143,26 +157,35 @@ export default function TasksPage() {
     setFormTask({ status: "Pending", priority: "Medium" });
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!formTask.title || !formTask.description || !formTask.deadline || !formTask.category) return;
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+
+    const selectedCategory = categories.find((category) => category.name === formTask.category);
+    const fetchTasksForStatus = items.filter((task) => task.status === formTask.status);
+    const newTask = await insertTask(userId, {
       title: formTask.title,
       description: formTask.description,
       deadline: formTask.deadline,
       category: formTask.category,
+      categoryId: selectedCategory?.id ?? null,
       priority: formTask.priority as TaskPriority,
       estimatedStudyTime: formTask.estimatedStudyTime || "1h",
       status: formTask.status as TaskStatus,
-      order: items.filter((task) => task.status === formTask.status).length,
-    };
+      order: fetchTasksForStatus.length,
+    });
+
+    if (!newTask) return;
     setItems((prev) => [...prev, newTask]);
     setShowModal(false);
     resetForm();
   };
 
-  const handleDelete = (task: Task) => {
+  const handleDelete = async (task: Task) => {
+    await deleteTask(task.id);
     setItems((prev) => prev.filter((item) => item.id !== task.id));
   };
 
@@ -240,8 +263,8 @@ export default function TasksPage() {
         </Card>
       </section>
 
-      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
-        <section className="grid gap-4 xl:grid-cols-3">
+      <DndContext sensors={useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))} collisionDetection={closestCorners} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
+        <section className="grid gap-4 lg:grid-cols-3">
           {grouped.map((group) => (
             <TaskColumn key={group.status} status={group.status} tasks={group.tasks} />
           ))}
