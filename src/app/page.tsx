@@ -74,7 +74,7 @@ export default function HomePage() {
                   <span className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Preview</span>
                   <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Live UI</span>
                 </div>
-                <div className="h-48 rounded-3xl bg-gradient-to-br from-primary/10 via-background to-muted/30 p-4 shadow-inner">
+                <div className="h-48 rounded-3xl bg-linear-to-br from-primary/10 via-background to-muted/30 p-4 shadow-inner">
                   <div className="h-full rounded-3xl border border-dashed border-border/60 bg-background/90 p-4 text-sm text-muted-foreground">
                     Screenshot placeholder for dashboard panels and schedule timeline.
                   </div>

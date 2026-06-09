@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -18,9 +18,9 @@ import {
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { currentUser } from "@/mock/data";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -36,7 +36,33 @@ const navItems = [
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [session, setSession] = useState<any>(null);
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+    };
+
+    loadSession();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const userName = session?.user.user_metadata?.full_name || session?.user.email || "StudyFlow";
+  const userRole = session?.user.user_metadata?.role || "Student Planner";
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -80,7 +106,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                     )}
                     onClick={() => setSidebarOpen(false)}
                   >
-                    <ActiveIcon className="h-4 w-4 flex-shrink-0" />
+                    <ActiveIcon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
                   </Link>
                 );
@@ -91,19 +117,19 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               <div className="rounded-3xl border border-border/70 bg-background/80 p-3 sm:p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Active Profile</p>
                 <div className="mt-3 sm:mt-4 flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 sm:h-12 w-10 sm:w-12 items-center justify-center rounded-3xl bg-primary/10 text-primary flex-shrink-0">
+                  <div className="flex h-10 sm:h-12 w-10 sm:w-12 items-center justify-center rounded-3xl bg-primary/10 text-primary shrink-0">
                     <User className="h-4 sm:h-5 w-4 sm:w-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate">{currentUser.name}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{currentUser.role}</p>
+                    <p className="font-semibold text-sm truncate">{userName}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{userRole}</p>
                   </div>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <ThemeToggle />
-                <Button variant="outline" size="sm" asChild>
-                  <a href="/login">Logout</a>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  Logout
                 </Button>
               </div>
             </div>
@@ -114,11 +140,11 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           <header className="sticky top-0 z-10 border-b border-border/70 bg-background/95 backdrop-blur-xl px-3 sm:px-4 lg:px-8 py-3 sm:py-4 shadow-sm shadow-transparent">
             <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <Button variant="ghost" size="icon" className="md:hidden flex-shrink-0" onClick={() => setSidebarOpen(true)}>
+                <Button variant="ghost" size="icon" className="md:hidden shrink-0" onClick={() => setSidebarOpen(true)}>
                   <LayoutDashboard className="h-4 sm:h-5 w-4 sm:w-5" />
                 </Button>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {currentUser.name}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {userName}</p>
                   <h2 className="text-lg sm:text-xl font-semibold truncate">Your study hub</h2>
                 </div>
               </div>
@@ -130,15 +156,15 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                     className="w-full rounded-3xl border border-border bg-background/80 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
                   />
                 </div>
-                <Button variant="ghost" size="icon" className="hidden md:inline-flex flex-shrink-0">
+                <Button variant="ghost" size="icon" className="hidden md:inline-flex shrink-0">
                   <Bell className="h-4 w-4" />
                 </Button>
                 <ThemeToggle />
-                <button className="inline-flex items-center gap-2 rounded-3xl border border-border/70 bg-card px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition hover:border-primary/80 hover:text-primary flex-shrink-0">
+                <button className="inline-flex items-center gap-2 rounded-3xl border border-border/70 bg-card px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition hover:border-primary/80 hover:text-primary shrink-0">
                   <div className="flex h-6 sm:h-8 w-6 sm:w-8 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <User className="h-3 sm:h-4 w-3 sm:w-4" />
                   </div>
-                  <span className="hidden sm:inline truncate">{currentUser.name}</span>
+                  <span className="hidden sm:inline truncate">{userName}</span>
                 </button>
               </div>
             </div>

@@ -11,9 +11,9 @@ interface StatsCardProps {
 
 export function StatsCard({ icon, title, value, description, className }: StatsCardProps) {
   return (
-    <Card className={`rounded-2xl sm:rounded-3xl border border-border/80 bg-gradient-to-br from-primary/5 to-muted/50 shadow-lg shadow-black/5 ${className ?? ""}`}>
+    <Card className={`rounded-2xl sm:rounded-3xl border border-border/80 bg-linear-to-br from-primary/5 to-muted/50 shadow-lg shadow-black/5 ${className ?? ""}`}>
       <CardHeader className="space-y-1 p-4 sm:p-5">
-        <div className="flex h-10 sm:h-11 w-10 sm:w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary shadow-sm shadow-primary/10 dark:bg-white/5">
+        <div className="flex h-10 sm:h-11 w-10 sm:w-11 items-center justify-center rounded-2xl bg-linear-to-br from-primary/20 to-primary/10 text-primary shadow-sm shadow-primary/10 dark:bg-white/5">
           {icon}
         </div>
         <CardTitle className="text-xs sm:text-sm font-semibold truncate">{title}</CardTitle>

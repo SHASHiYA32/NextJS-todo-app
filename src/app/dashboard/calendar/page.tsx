@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type HTMLAttributes } from "react";
+import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
@@ -8,15 +8,28 @@ import { format, isToday } from "date-fns";
 import { CalendarDays, Clock3, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskCard } from "@/components/task-card";
-import { tasks as taskSeed } from "@/mock/data";
+import { supabase } from "@/lib/supabase";
+import { getTasks, updateTask } from "@/lib/db";
 import type { Task } from "@/types";
 
 const formatKey = (date: Date) => format(date, "yyyy-MM-dd");
 
 export default function CalendarPage() {
-  const [items, setItems] = useState<Task[]>(taskSeed);
+  const [items, setItems] = useState<Task[]>([]);
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+      const fetchedTasks = await getTasks(userId);
+      setItems(fetchedTasks);
+    };
+
+    loadTasks();
+  }, []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -39,16 +52,17 @@ export default function CalendarPage() {
 
   const handleDragStart = ({ active }: { active: any }) => setActiveId(active.id);
 
-  const handleDragEnd = ({ active, over }: { active: any; over: any }) => {
+  const handleDragEnd = async ({ active, over }: { active: any; over: any }) => {
     setActiveId(null);
     if (!over) return;
     const destination = over.id as string;
     if (!destination.startsWith("day-")) return;
     const newDeadline = destination.replace("day-", "");
     setItems((prev) => prev.map((task) => (task.id === active.id ? { ...task, deadline: newDeadline } : task)));
+    await updateTask(active.id, { deadline: newDeadline });
   };
 
-  function CustomDay({ day, modifiers, ...props }: { day: { date: Date }; modifiers: any } & React.HTMLAttributes<HTMLTableCellElement>) {
+  function CustomDay({ day, modifiers, ...props }: { day: { date: Date }; modifiers: any } & HTMLAttributes<HTMLTableCellElement>) {
     const dateId = `day-${formatKey(day.date)}`;
     const { setNodeRef, isOver } = useDroppable({ id: dateId });
     const dayTasks = items.filter((task) => task.deadline === formatKey(day.date));

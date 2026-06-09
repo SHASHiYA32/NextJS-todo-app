@@ -1,8 +1,55 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CheckCircle2, Sparkles, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { progressMetrics, tasks } from "@/mock/data";
+import { getTasks, getUserId } from "@/lib/db";
+import type { Task } from "@/types";
 
 export default function ProgressPage() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    const loadProgress = async () => {
+      const userId = await getUserId();
+      if (!userId) return;
+      const data = await getTasks(userId);
+      setTasks(data);
+    };
+
+    loadProgress();
+  }, []);
+
+  const completedTasks = useMemo(() => tasks.filter((task) => task.status === "Completed").length, [tasks]);
+  const pendingTasks = useMemo(() => tasks.filter((task) => task.status !== "Completed").length, [tasks]);
+  const totalTasks = tasks.length;
+  const completionRate = totalTasks ? `${Math.round((completedTasks / totalTasks) * 100)}%` : "0%";
+  const weeklyMomentum = totalTasks ? `${Math.round((completedTasks / totalTasks) * 100)}%` : "0%";
+  const focusStreak = `${Math.min(7, completedTasks)} days`;
+
+  const progressMetrics = [
+    {
+      title: "Completion rate",
+      value: completionRate,
+      description: "Percent of tasks completed.",
+    },
+    {
+      title: "Weekly momentum",
+      value: weeklyMomentum,
+      description: "Your pace against planned tasks.",
+    },
+    {
+      title: "Focus streak",
+      value: focusStreak,
+      description: "Consistent days with completed tasks.",
+    },
+    {
+      title: "Pending tasks",
+      value: `${pendingTasks}`,
+      description: "Tasks still remaining.",
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <section className="space-y-3">
