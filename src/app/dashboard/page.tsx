@@ -33,7 +33,7 @@ export default function DashboardPage() {
   const pendingTasks = useMemo(() => tasks.filter((task) => task.status !== "Completed").length, [tasks]);
   const upcomingDeadlines = useMemo(() => tasks.filter((task) => task.status !== "Completed").slice(0, 3), [tasks]);
   const completionRate = useMemo(() => (tasks.length ? `${Math.round((completedToday / tasks.length) * 100)}%` : "0%"), [tasks.length, completedToday]);
-  const estimatedStudyTime = useMemo(() => tasks.reduce((sum, task) => sum + (task.estimatedStudyTime ?? 0), 0), [tasks]);
+  const estimatedStudyTime = useMemo(() => tasks.reduce((sum, task) => sum + Number(task.estimatedStudyTime ?? 0), 0), [tasks]);
   const taskStreak = useMemo(() => `${Math.min(7, completedToday)} days`, [completedToday]);
 
   const progressMetrics = [
