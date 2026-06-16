@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/stats-card";
 import { TaskCompletionChart, StudySessionsChart, ProductivityTrendChart } from "@/components/charts";
 import { getNotes, getProfile, getTasks, getUserId } from "@/lib/db";
-import type { Note, Profile, Task } from "@/types";
+import type { Note, UserProfile, Task } from "@/types";
 
 export default function DashboardPage() {
   const [viewFullReports, setViewFullReports] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
 
