@@ -55,10 +55,13 @@ export interface NotificationItem {
 }
 
 export interface UserProfile {
+  id?: string;
   name: string;
   role: string;
-  email: string;
+  email?: string | null;
 }
+
+export type Profile = UserProfile;
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
