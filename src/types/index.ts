@@ -61,7 +61,6 @@ export interface UserProfile {
   email?: string | null;
 }
 
-export type Profile = UserProfile;
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
