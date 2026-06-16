@@ -2,7 +2,7 @@
 
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-const taskCompletionData = [
+const defaultTaskCompletionData = [
   { day: "Mon", completed: 4, pending: 2 },
   { day: "Tue", completed: 5, pending: 1 },
   { day: "Wed", completed: 3, pending: 3 },
@@ -12,14 +12,14 @@ const taskCompletionData = [
   { day: "Sun", completed: 7, pending: 0 },
 ];
 
-const studySessionData = [
+const defaultStudySessionData = [
   { week: "Week 1", hours: 12 },
   { week: "Week 2", hours: 15 },
   { week: "Week 3", hours: 18 },
   { week: "Week 4", hours: 16 },
 ];
 
-const productivityTrendData = [
+const defaultProductivityTrendData = [
   { date: "1", score: 65 },
   { date: "2", score: 72 },
   { date: "3", score: 68 },
@@ -29,10 +29,22 @@ const productivityTrendData = [
   { date: "7", score: 92 },
 ];
 
-export function TaskCompletionChart() {
+export interface TaskCompletionChartProps {
+  data?: Array<{ day: string; completed: number; pending: number }>;
+}
+
+export interface StudySessionChartProps {
+  data?: Array<{ week: string; hours: number }>;
+}
+
+export interface ProductivityTrendChartProps {
+  data?: Array<{ date: string; score: number }>;
+}
+
+export function TaskCompletionChart({ data = defaultTaskCompletionData }: TaskCompletionChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={taskCompletionData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+      <BarChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
         <defs>
           <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
@@ -55,10 +67,10 @@ export function TaskCompletionChart() {
   );
 }
 
-export function StudySessionsChart() {
+export function StudySessionsChart({ data = defaultStudySessionData }: StudySessionChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={studySessionData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+      <AreaChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
         <defs>
           <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
@@ -75,10 +87,10 @@ export function StudySessionsChart() {
   );
 }
 
-export function ProductivityTrendChart() {
+export function ProductivityTrendChart({ data = defaultProductivityTrendData }: ProductivityTrendChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={productivityTrendData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+      <LineChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
         <defs>
           <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />

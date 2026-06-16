@@ -51,6 +51,7 @@ export interface NotificationItem {
   id: string;
   title: string;
   description: string;
+  read: boolean;
   time: string;
 }
 
@@ -59,6 +60,25 @@ export interface UserProfile {
   name: string;
   role: string;
   email?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface Integration {
+  id: string;
+  name: string;
+  enabled: boolean;
+  config: string;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 
@@ -243,6 +263,58 @@ export interface Database {
           title?: string;
           description?: string;
           read?: boolean;
+        };
+      };
+      announcements: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          message: string;
+          active: boolean;
+          created_at: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          message: string;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          title?: string;
+          message?: string;
+          active?: boolean;
+          updated_at?: string | null;
+        };
+      };
+      integrations: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          enabled: boolean;
+          config: string;
+          created_at: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          enabled?: boolean;
+          config: string;
+          created_at?: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          name?: string;
+          enabled?: boolean;
+          config?: string;
+          updated_at?: string | null;
         };
       };
     };
