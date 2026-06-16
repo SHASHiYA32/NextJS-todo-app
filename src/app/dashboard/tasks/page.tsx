@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react";
-import { DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus, Search, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { TaskCard } from "@/components/task-card";
 import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-import { getCategories, getTasks, insertTask, deleteTask, updateTaskOrder } from "@/lib/db";
+import { getCategories, getTasks, insertTask, deleteTask, updateTask, updateTaskOrder } from "@/lib/db";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
 
 const statusOrder: TaskStatus[] = ["Pending", "In Progress", "Completed"];
@@ -41,6 +41,11 @@ export default function TasksPage() {
     };
 
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const query = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("search") ?? "" : "";
+    if (query) setSearchText(query);
   }, []);
 
   const filteredTasks = useMemo(() => {
@@ -145,7 +150,10 @@ export default function TasksPage() {
         return updated ?? task;
       });
       setItems(updatedItems);
-      await updateTaskOrder(updatedItems.filter((task) => task.status === activeContainer || task.status === overContainer));
+      await Promise.all([
+        updateTaskOrder(updatedDestination),
+        updateTask(activeTask.id, { status: overContainer as TaskStatus, order: updatedDestination.length - 1 }),
+      ]);
     }
   };
 
@@ -159,18 +167,20 @@ export default function TasksPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!formTask.title || !formTask.description || !formTask.deadline || !formTask.category) return;
+    if (!formTask.title || !formTask.description) return;
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) return;
 
-    const selectedCategory = categories.find((category) => category.name === formTask.category);
+    const categoryName = formTask.category || "Unsorted";
+    const selectedCategory = categories.find((category) => category.name === categoryName);
     const fetchTasksForStatus = items.filter((task) => task.status === formTask.status);
+    const deadline = formTask.deadline || new Date().toISOString().split("T")[0];
     const newTask = await insertTask(userId, {
       title: formTask.title,
       description: formTask.description,
-      deadline: formTask.deadline,
-      category: formTask.category,
+      deadline,
+      category: categoryName,
       categoryId: selectedCategory?.id ?? null,
       priority: formTask.priority as TaskPriority,
       estimatedStudyTime: formTask.estimatedStudyTime || "1h",

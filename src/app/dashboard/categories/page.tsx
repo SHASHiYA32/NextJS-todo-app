@@ -11,10 +11,14 @@ import { getCategories, getTasks, insertCategory } from "@/lib/db";
 import type { Category, Task } from "@/types";
 
 const defaultColors = [
-  "from-sky-500 to-indigo-500",
-  "from-emerald-500 to-teal-500",
-  "from-fuchsia-500 to-pink-500",
-  "from-amber-500 to-orange-500",
+  "bg-gradient-to-br from-sky-500 to-indigo-500",
+  "bg-gradient-to-br from-emerald-500 to-teal-500",
+  "bg-gradient-to-br from-fuchsia-500 to-pink-500",
+  "bg-gradient-to-br from-amber-500 to-orange-500",
+  "bg-gradient-to-br from-violet-500 to-fuchsia-500",
+  "bg-gradient-to-br from-lime-500 to-emerald-500",
+  "bg-gradient-to-br from-cyan-500 to-sky-500",
+  "bg-gradient-to-br from-rose-500 to-orange-500",
 ];
 
 export default function CategoriesPage() {
@@ -57,6 +61,11 @@ export default function CategoriesPage() {
   const handleAddCategory = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!categoryName.trim()) return;
+
+    if (categories.some((category) => category.name.toLowerCase() === categoryName.trim().toLowerCase())) {
+      setError("Category already exists.");
+      return;
+    }
 
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
@@ -109,7 +118,8 @@ export default function CategoriesPage() {
                         key={color}
                         type="button"
                         onClick={() => setCategoryColor(color)}
-                        className={`h-12 rounded-3xl text-white ${color} ${categoryColor === color ? "ring-2 ring-offset-2 ring-primary" : "opacity-90"}`}
+                        aria-label={`Select theme ${color}`}
+                        className={`h-12 rounded-3xl ${color} ${categoryColor === color ? "ring-2 ring-offset-2 ring-primary" : "opacity-90"}`}
                       />
                     ))}
                   </div>
@@ -134,8 +144,14 @@ export default function CategoriesPage() {
                   <div className="rounded-3xl border border-dashed border-border/60 bg-background/80 p-6 text-center text-sm text-muted-foreground">Create the first category to track your study tasks.</div>
                 ) : (
                   categoryCounts.map((category) => (
-                    <div key={category.id} className="flex items-center justify-between rounded-3xl border border-border/70 bg-background/80 p-4">
-                      <span>{category.name}</span>
+                    <div key={category.id} className="flex items-center justify-between gap-4 rounded-3xl border border-border/70 bg-background/80 p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-3xl ${category.color}`} />
+                        <div>
+                          <p className="font-semibold">{category.name}</p>
+                          <p className="text-xs text-muted-foreground">Theme preview</p>
+                        </div>
+                      </div>
                       <span className="text-sm text-muted-foreground">{category.taskCount} tasks</span>
                     </div>
                   ))

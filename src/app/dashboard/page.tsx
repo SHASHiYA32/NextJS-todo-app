@@ -1,39 +1,92 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CalendarDays, CheckCircle2, Clock3, Sparkles, Trophy, TrendingUp, Zap, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, BookOpen, CalendarDays, CheckCircle2, Clock3, Sparkles, Trophy, TrendingUp, Zap, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/stats-card";
 import { TaskCompletionChart, StudySessionsChart, ProductivityTrendChart } from "@/components/charts";
-import { getNotes, getProfile, getTasks, getUserId } from "@/lib/db";
-import type { Note, UserProfile, Task } from "@/types";
+import { getActiveAnnouncements, getAnnouncements, getNotes, getNotifications, getProfile, getTasks, getUserId, getProductivityScoreData, getStudySessionChartData, getTaskCompletionData } from "@/lib/db";
+import type { Announcement, Note, NotificationItem, UserProfile, Task } from "@/types";
+import type { TaskCompletionChartProps, StudySessionChartProps, ProductivityTrendChartProps } from "@/components/charts";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [viewFullReports, setViewFullReports] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [taskCompletionData, setTaskCompletionData] = useState<TaskCompletionChartProps["data"]>();
+  const [studySessionData, setStudySessionData] = useState<StudySessionChartProps["data"]>();
+  const [productivityData, setProductivityData] = useState<ProductivityTrendChartProps["data"]>();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   useEffect(() => {
     const loadDashboard = async () => {
       const userId = await getUserId();
       if (!userId) return;
 
-      const [profileData, tasksData, notesData] = await Promise.all([getProfile(userId), getTasks(userId), getNotes(userId)]);
+      // Check if first-time user
+      const hasSeenOnboarding = localStorage.getItem("hasSeenOnboarding");
+      if (!hasSeenOnboarding) {
+        router.push("/onboarding");
+        return;
+      }
+
+      const [profileData, tasksData, notesData, taskChartData, sessionChartData, productivityChartData, notificationsData, announcementsData] = await Promise.all([
+        getProfile(userId),
+        getTasks(userId),
+        getNotes(userId),
+        getTaskCompletionData(userId),
+        getStudySessionChartData(userId),
+        getProductivityScoreData(userId),
+        getNotifications(userId),
+        getActiveAnnouncements(),
+      ]);
       setProfile(profileData);
       setTasks(tasksData);
       setNotes(notesData);
+      setTaskCompletionData(taskChartData);
+      setStudySessionData(sessionChartData);
+      setProductivityData(productivityChartData);
+      const mergedNotifications: any[] = [];
+      if (notificationsData) mergedNotifications.push(...notificationsData);
+      if (announcementsData) {
+        announcementsData.forEach((ann) => {
+          if (ann.active) {
+            mergedNotifications.push({
+              id: `ann-${ann.id}`,
+              title: ann.title,
+              description: ann.message,
+              read: false,
+              time: ann.createdAt,
+            });
+          }
+        });
+      }
+      const sorted = mergedNotifications.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      setNotifications(sorted);
+      setAnnouncements(announcementsData);
     };
 
     loadDashboard();
-  }, []);
+  }, [router]);
 
-  const completedToday = useMemo(() => tasks.filter((task) => task.status === "Completed").length, [tasks]);
+  const completedToday = useMemo(() => {
+    if (!taskCompletionData || taskCompletionData.length === 0) return 0;
+    const todayData = taskCompletionData[taskCompletionData.length - 1];
+    return todayData?.completed || 0;
+  }, [taskCompletionData]);
   const pendingTasks = useMemo(() => tasks.filter((task) => task.status !== "Completed").length, [tasks]);
   const upcomingDeadlines = useMemo(() => tasks.filter((task) => task.status !== "Completed").slice(0, 3), [tasks]);
   const completionRate = useMemo(() => (tasks.length ? `${Math.round((completedToday / tasks.length) * 100)}%` : "0%"), [tasks.length, completedToday]);
-  const estimatedStudyTime = useMemo(() => tasks.reduce((sum, task) => sum + Number(task.estimatedStudyTime ?? 0), 0), [tasks]);
+  const estimatedStudyTime = useMemo(() => {
+    if (!taskCompletionData || taskCompletionData.length === 0) return "0 h";
+    const totalHours = taskCompletionData.reduce((sum, day) => sum + (day.completed || 0) * 2, 0);
+    return `${totalHours} h`;
+  }, [taskCompletionData]);
   const taskStreak = useMemo(() => `${Math.min(7, completedToday)} days`, [completedToday]);
 
   const progressMetrics = [
@@ -131,7 +184,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <div className="w-full overflow-x-auto -mx-4 sm:mx-0">
               <div className="w-full min-w-full px-4 sm:px-0">
-                <TaskCompletionChart />
+                <TaskCompletionChart data={taskCompletionData} />
               </div>
             </div>
           </CardContent>
@@ -149,7 +202,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <div className="w-full overflow-x-auto -mx-4 sm:mx-0">
               <div className="w-full min-w-full px-4 sm:px-0">
-                <StudySessionsChart />
+                <StudySessionsChart data={studySessionData} />
               </div>
             </div>
           </CardContent>
@@ -170,7 +223,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <div className="w-full overflow-x-auto -mx-4 sm:mx-0">
               <div className="w-full min-w-full px-4 sm:px-0">
-                <ProductivityTrendChart />
+                <ProductivityTrendChart data={productivityData} />
               </div>
             </div>
           </CardContent>
@@ -227,6 +280,36 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl sm:rounded-[2rem] border border-border/80 bg-card/90 p-4 sm:p-6 shadow-lg shadow-black/5">
+            <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+              <div>
+                <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-muted-foreground">Notifications</p>
+                <h3 className="mt-1 text-base sm:text-xl font-semibold">Latest alerts</h3>
+              </div>
+              <Bell className="h-5 w-5 text-primary shrink-0" />
+            </div>
+            <div className="space-y-3">
+              {notifications.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/60 bg-background/80 p-6 text-center text-sm text-muted-foreground">You don’t have any alerts yet. Create a notification to keep the schedule updated.</div>
+              ) : (
+                notifications.slice(0, 3).map((notification) => (
+                  <div key={notification.id} className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{notification.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{new Date(notification.time).toLocaleDateString()}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${notification.read ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"}`}>
+                        {notification.read ? "Read" : "New"}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">{notification.description}</p>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
 

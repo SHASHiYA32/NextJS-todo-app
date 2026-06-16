@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link";
+import { getActiveAnnouncements, getNotifications, getProfile, markNotificationRead } from "@/lib/db";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
   ListChecks,
   MessageSquare,
   Settings,
+  ShieldCheck,
   Sparkles,
   Timer,
   User,
@@ -31,12 +33,17 @@ const navItems = [
   { href: "/dashboard/categories", label: "Categories", icon: Grid },
   { href: "/dashboard/progress", label: "Progress", icon: Sparkles },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/admin", label: "Admin", icon: ShieldCheck },
   { href: "/dashboard/schedule", label: "Schedule", icon: CheckSquare },
 ];
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [profile, setProfile] = useState<{ name: string; role: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const pathname = usePathname();
   const router = useRouter();
 
@@ -44,6 +51,28 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     const loadSession = async () => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
+      if (data.session?.user.id) {
+        const profileData = await getProfile(data.session.user.id);
+        if (profileData) {
+          setProfile({ name: profileData.name, role: profileData.role });
+        }
+        const [notifData, announcementData] = await Promise.all([
+          getNotifications(data.session.user.id),
+          getActiveAnnouncements(),
+        ]);
+        const announcementNotifications = announcementData.map((ann) => ({
+          id: `ann-${ann.id}`,
+          title: ann.title,
+          description: ann.message,
+          read: false,
+          time: ann.createdAt,
+        }));
+        setNotifications(
+          [...notifData, ...announcementNotifications].sort(
+            (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+          )
+        );
+      }
     };
 
     loadSession();
@@ -56,13 +85,35 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     };
   }, []);
 
-  const userName = session?.user.user_metadata?.full_name || session?.user.email || "StudyFlow";
-  const userRole = session?.user.user_metadata?.role || "Student Planner";
+  const userName = profile?.name || session?.user.user_metadata?.full_name || session?.user.email || "StudyFlow";
+  const userRole = profile?.role || session?.user.user_metadata?.role || "Student Planner";
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  const handleSearchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    setSidebarOpen(false);
+    router.push(`/dashboard/tasks?search=${encodeURIComponent(query)}`);
+  };
+
+  const handleNotificationClick = async (notification: any) => {
+    if (!notification.read && typeof notification.id === "string") {
+      if (notification.id.startsWith("ann-")) {
+        setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item)));
+      } else {
+        await markNotificationRead(notification.id);
+        setNotifications((prev) => prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item)));
+      }
+    }
+    setShowNotifications(false);
+  };
+
+  const filteredNavItems = navItems.filter((item) => item.href !== "/dashboard/admin" || profile?.role?.toLowerCase().includes("admin"));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -93,7 +144,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </div>
 
             <nav className="space-y-1 sm:space-y-2">
-              {navItems.map((item) => {
+              {filteredNavItems.map((item) => {
                 const ActiveIcon = item.icon;
                 const active = pathname === item.href;
                 return (
@@ -128,6 +179,11 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               </div>
               <div className="flex items-center justify-between gap-2">
                 <ThemeToggle />
+                {profile && profile.role?.toLowerCase().includes("admin") ? (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/dashboard/admin">Admin</Link>
+                  </Button>
+                ) : null}
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>
@@ -149,16 +205,54 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <div className="relative flex-1 min-w-48 sm:min-w-64">
+                <form onSubmit={handleSearchSubmit} className="relative flex-1 min-w-48 sm:min-w-64">
                   <input
                     type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search tasks, notes..."
                     className="w-full rounded-3xl border border-border bg-background/80 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
                   />
+                </form>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="inline-flex shrink-0 relative"
+                    onClick={() => setShowNotifications((prev) => !prev)}
+                  >
+                    <Bell className="h-4 w-4" />
+                    {notifications.some((notification) => !notification.read) && (
+                      <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
+                    )}
+                  </Button>
+                  {showNotifications && (
+                    <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-border/80 bg-card/95 shadow-lg z-50 max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-muted-foreground">No notifications</div>
+                      ) : (
+                        <div className="divide-y divide-border/50">
+                          {notifications.slice(0, 5).map((notification) => (
+                            <button
+                              key={notification.id}
+                              type="button"
+                              className="w-full text-left p-4 hover:bg-muted/50 transition"
+                              onClick={() => handleNotificationClick(notification)}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-sm">{notification.title}</p>
+                                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${notification.read ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"}`}>
+                                  {notification.read ? "Read" : "New"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{notification.description}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <Button variant="ghost" size="icon" className="hidden md:inline-flex shrink-0">
-                  <Bell className="h-4 w-4" />
-                </Button>
                 <ThemeToggle />
                 <button className="inline-flex items-center gap-2 rounded-3xl border border-border/70 bg-card px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition hover:border-primary/80 hover:text-primary shrink-0">
                   <div className="flex h-6 sm:h-8 w-6 sm:w-8 items-center justify-center rounded-2xl bg-primary/10 text-primary">

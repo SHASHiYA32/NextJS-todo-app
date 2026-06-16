@@ -190,11 +190,13 @@ export const notifications: NotificationItem[] = [
     title: "Deadline approaching",
     description: "Math workbook is due tomorrow.",
     time: "1h ago",
+    read: false,
   },
   {
     id: "notif-2",
     title: "Session reminder",
     description: "Your Pomodoro study block starts at 10:00.",
     time: "3h ago",
+    read: true,
   },
 ];
